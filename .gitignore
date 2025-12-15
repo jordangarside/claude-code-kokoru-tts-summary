@@ -1,0 +1,17 @@
+# Output logs
+*.output
+
+# Local settings (may contain API keys)
+.claude
+
+# Backups and samples
+backups/
+samples/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store

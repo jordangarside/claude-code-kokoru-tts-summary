@@ -66,7 +66,7 @@ Add to `~/.claude/settings.local.json`:
           {
             "type": "command",
             "command": "~/.claude/hooks/summary-tts.sh",
-            "timeout": 30
+            "timeout": 3
           }
         ]
       }
@@ -77,7 +77,7 @@ Add to `~/.claude/settings.local.json`:
           {
             "type": "command",
             "command": "~/.claude/hooks/permission-tts.sh",
-            "timeout": 10
+            "timeout": 3
           }
         ]
       }

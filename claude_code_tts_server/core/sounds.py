@@ -2,10 +2,15 @@
 
 import os
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+
+from .logging import get_logger
+
+log = get_logger()
 
 
 def generate_chime(sample_rate: int = 24000) -> np.ndarray:
@@ -135,7 +140,11 @@ def time_stretch(audio: np.ndarray, sample_rate: int, speed: float) -> np.ndarra
 
     import pyrubberband as pyrb
 
-    return pyrb.time_stretch(audio, sample_rate, speed).astype(audio.dtype)
+    start = time.perf_counter()
+    result = pyrb.time_stretch(audio, sample_rate, speed).astype(audio.dtype)
+    elapsed = time.perf_counter() - start
+    log.trace(f"Rubberband time stretch ({speed}x): {elapsed:.3f}s")
+    return result
 
 
 def save_audio(audio: np.ndarray, sample_rate: int = 24000, speed: float = 1.0) -> Path:
@@ -156,9 +165,12 @@ def save_audio(audio: np.ndarray, sample_rate: int = 24000, speed: float = 1.0) 
     if speed != 1.0:
         audio = time_stretch(audio, sample_rate, speed)
 
+    start = time.perf_counter()
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         path = Path(f.name)
     sf.write(path, audio, sample_rate)
+    elapsed = time.perf_counter() - start
+    log.trace(f"Audio file save: {elapsed:.3f}s")
     return path
 
 

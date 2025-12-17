@@ -1,15 +1,15 @@
 """Kokoro TTS backend implementation."""
 
 import asyncio
-import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
 from ..config import TTSConfig
+from ..core.logging import get_logger
 from .base import TTSInterface
 
-log = logging.getLogger("tts-server")
+log = get_logger()
 
 
 class KokoroTTS(TTSInterface):
@@ -45,6 +45,8 @@ class KokoroTTS(TTSInterface):
         Returns:
             Audio as numpy array or None if synthesis failed.
         """
+        import time
+
         if not self.pipeline:
             log.error("Kokoro pipeline not initialized")
             return None
@@ -60,7 +62,10 @@ class KokoroTTS(TTSInterface):
             return np.concatenate(all_audio)
 
         try:
+            start = time.perf_counter()
             audio = await loop.run_in_executor(self._executor, generate)
+            elapsed = time.perf_counter() - start
+            log.trace(f"Kokoro TTS synthesis: {elapsed:.3f}s")
             return audio
         except Exception as e:
             log.error(f"TTS generation failed: {e}")

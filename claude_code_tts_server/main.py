@@ -45,6 +45,9 @@ def create_tts(config: TTSConfig) -> TTSInterface:
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# Import TRACE level (this also adds .trace() method to Logger)
+from .core.logging import TRACE
+
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Middleware to set request ID for each request."""
@@ -62,6 +65,7 @@ class ColorFormatter(logging.Formatter):
     """Custom formatter with colors, timestamps, and request ID support."""
 
     COLORS = {
+        TRACE: "\033[35m",  # Magenta
         logging.DEBUG: "\033[36m",  # Cyan
         logging.INFO: "\033[32m",  # Green
         logging.WARNING: "\033[33m",  # Yellow
@@ -89,7 +93,9 @@ class ColorFormatter(logging.Formatter):
 def setup_logging(level: str = "INFO") -> logging.Logger:
     """Configure logging with colored output."""
     logger = logging.getLogger("tts-server")
-    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+    # Handle TRACE level specially since it's not in logging module
+    log_level = TRACE if level.upper() == "TRACE" else getattr(logging, level.upper(), logging.INFO)
+    logger.setLevel(log_level)
 
     # Clear existing handlers
     logger.handlers.clear()
@@ -241,7 +247,7 @@ def _log_startup_config(config: ServerConfig) -> None:
 @click.option(
     "--log-level",
     default=None,
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+    type=click.Choice(["TRACE", "DEBUG", "INFO", "WARNING", "ERROR"]),
     help="Log level (env: TTS_SERVER_LOG_LEVEL)",
 )
 # Summarizer options

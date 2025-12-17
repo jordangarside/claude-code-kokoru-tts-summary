@@ -91,7 +91,7 @@ class ServerConfig(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = Field(default=20202, alias="SUMMARY_AUDIO_PORT")
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_level: Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     tts: TTSConfig = Field(default_factory=TTSConfig)
     summarizer: SummarizerConfig = Field(default_factory=SummarizerConfig)

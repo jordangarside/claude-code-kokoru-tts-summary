@@ -1,4 +1,4 @@
-# Claude Code TTS Hooks
+# Claude Code TTS Server
 
 Audio feedback for Claude Code using text-to-speech. Hear summaries of Claude's responses and permission requests.
 
@@ -8,12 +8,13 @@ Audio feedback for Claude Code using text-to-speech. Hear summaries of Claude's 
 - **Permission announcements** - Hear what permission Claude is requesting before you approve
 - **Interrupt support** - New audio cancels currently playing audio with a transition chime
 - **SSH support** - Works on remote servers via reverse tunnel
+- **REST API** - Control the TTS server programmatically
 
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
-- [Groq API key](https://console.groq.com/) (free tier works fine)
+- [Groq API key](https://console.groq.com/) (free tier works fine) **OR** [Ollama](https://ollama.ai/) for local inference
 
 ## Installation
 
@@ -23,42 +24,50 @@ Audio feedback for Claude Code using text-to-speech. Hear summaries of Claude's 
 uv sync
 ```
 
-### 2. Start the TTS Server
+### 2. Configure the Server
+
+Copy the example environment file and add your API key:
 
 ```bash
-uv run kokoro-server --port 20202
+cp .env.example .env
 ```
 
-### 3. Install the Hooks
+Edit `.env` and set your Groq API key:
+
+```bash
+SUMMARY_GROQ_API_KEY=your-groq-api-key-here
+```
+
+See [Configuration](#configuration) below for all available options.
+
+### 3. Start the TTS Server
+
+```bash
+uv run tts-server
+```
+
+### 4. Install the Hooks
 
 ```bash
 mkdir -p ~/.claude/hooks
 
-cp * ~/.claude/hooks/
-
-# or
-
-cp claude-code-kokoro-tts-summary.sh ~/.claude/hooks/
-cp claude-code-kokoro-tts-permission.sh ~/.claude/hooks/
+cp claude-code-hooks/* ~/.claude/hooks/
 ```
 
-### 4. Configure Claude Code
+### 5. Configure Claude Code
 
 Add to `~/.claude/settings.local.json`:
 
 ```json
 {
-  "env": {
-    "SUMMARY_GROQ_API_KEY": "your-groq-api-key"
-  },
   "hooks": {
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/claude-code-kokoro-tts-summary.sh",
-            "timeout": 10
+            "command": "~/.claude/hooks/summary-tts.sh",
+            "timeout": 30
           }
         ]
       }
@@ -68,7 +77,7 @@ Add to `~/.claude/settings.local.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/claude-code-kokoro-tts-permission.sh",
+            "command": "~/.claude/hooks/permission-tts.sh",
             "timeout": 10
           }
         ]
@@ -78,12 +87,33 @@ Add to `~/.claude/settings.local.json`:
 }
 ```
 
-## Hooks
+## Architecture
 
-| Hook | Event | Description |
-|------|-------|-------------|
-| `claude-code-kokoro-tts-summary.sh` | Stop | Summarizes Claude's response after completion |
-| `claude-code-kokoro-tts-permission.sh` | PermissionRequest | Announces what permission Claude is requesting |
+```
+claude_code_tts_server/         # Python package
+├── main.py                     # FastAPI server entry point
+├── config.py                   # Configuration with Pydantic
+├── api/                        # REST API endpoints
+├── core/                       # Audio manager, playback, sounds
+├── summarizers/                # LLM backends (Groq)
+└── tts/                        # TTS backends (Kokoro)
+
+claude-code-hooks/              # Shell script wrappers
+├── summary-tts.sh              # Stop hook -> POST /summarize
+└── permission-tts.sh           # PermissionRequest hook -> POST /permission
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| POST | `/summarize` | Full pipeline: transcript -> summary -> TTS |
+| POST | `/permission` | Permission announcement pipeline |
+| POST | `/speak` | Direct TTS (skip summarization) |
+| GET | `/queue` | Queue status |
+| POST | `/queue/clear` | Clear all pending audio |
+| POST | `/queue/skip` | Skip currently playing audio |
 
 ## Remote Usage (SSH)
 
@@ -91,22 +121,74 @@ Run the TTS server on your local machine, then SSH with a reverse tunnel:
 
 ```bash
 # Local machine
-uv run kokoro-server --port 20202
+uv run tts-server
 
-# SSH to remote
+# SSH to remote (forward port 20202 back to local)
 ssh -R 20202:localhost:20202 user@remote-server
 ```
 
-The hooks on the remote server will send audio back through the tunnel to your local TTS server.
+The hooks on the remote server will send requests through the tunnel to your local TTS server for audio playback.
 
 ## Configuration
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SUMMARY_GROQ_API_KEY` | Yes | - | Groq API key |
-| `SUMMARY_GROQ_MODEL_LARGE` | No | `openai/gpt-oss-120b` | Model for long response summaries |
-| `SUMMARY_GROQ_MODEL_SMALL` | No | `llama-3.1-8b-instant` | Model for short responses and permissions |
-| `SUMMARY_AUDIO_PORT` | No | `20202` | TTS server port |
+All settings can be configured via environment variables in `.env` or CLI args. CLI args take precedence over env vars.
+
+### Summarizer Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SUMMARY_BACKEND` | `groq` | Backend: `groq` or `ollama` |
+| `SUMMARY_GROQ_API_KEY` | - | Groq API key (required for groq) |
+| `SUMMARY_GROQ_MODEL_LARGE` | `openai/gpt-oss-120b` | Groq model for long responses |
+| `SUMMARY_GROQ_MODEL_SMALL` | `llama-3.1-8b-instant` | Groq model for short responses |
+| `SUMMARY_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
+| `SUMMARY_OLLAMA_MODEL_LARGE` | `qwen3:4b-instruct-2507-q4_K_M` | Ollama model for long responses |
+| `SUMMARY_OLLAMA_MODEL_SMALL` | `qwen3:4b-instruct-2507-q4_K_M` | Ollama model for short responses |
+
+### Server Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TTS_SERVER_HOST` | `127.0.0.1` | Host to bind to |
+| `SUMMARY_AUDIO_PORT` | `20202` | Port to listen on |
+| `TTS_SERVER_LOG_LEVEL` | `INFO` | Log level |
+
+### Audio Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUDIO_INTERRUPT` | `true` | Allow new audio to interrupt |
+| `AUDIO_MIN_DURATION` | `1.5` | Seconds before interrupt allowed |
+| `AUDIO_QUEUE` | `true` | Queue messages to play in order |
+| `AUDIO_MAX_QUEUE` | `10` | Maximum queue depth |
+| `AUDIO_INTERRUPT_CHIME` | `true` | Play chime on interrupt |
+| `AUDIO_DROP_SOUND` | `true` | Play sound when messages dropped |
+
+### TTS Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TTS_BACKEND` | `kokoro` | Backend: `kokoro` |
+| `TTS_KOKORO_VOICE` | `af_heart` | Kokoro voice |
+| `TTS_KOKORO_LANG` | `a` | Kokoro language code |
+
+### Using Ollama (Local LLM)
+
+For local inference without API keys, install [Ollama](https://ollama.ai/) and configure via `.env`:
+
+```bash
+SUMMARY_BACKEND=ollama
+SUMMARY_OLLAMA_MODEL_LARGE=llama3.1:8b
+SUMMARY_OLLAMA_MODEL_SMALL=llama3.2:1b
+```
+
+Or use CLI args:
+
+```bash
+uv run tts-server --summarizer ollama
+```
+
+**Note:** Local inference is slower than Groq, especially without a GPU. Expect 2-10+ seconds per summary depending on your hardware.
 
 ## How It Works
 
@@ -121,6 +203,7 @@ The hooks on the remote server will send audio back through the tunnel to your l
 - Non-blocking to avoid delaying the permission dialog
 
 **TTS Server:**
+- FastAPI-based REST API
 - Async architecture handles multiple connections
 - Configurable interrupt and queue behavior
 - Optional audio indicators (chime on interrupt, blip on skip)
@@ -128,12 +211,13 @@ The hooks on the remote server will send audio back through the tunnel to your l
 ### Server Options
 
 ```bash
-uv run kokoro-server [options]
+uv run tts-server [options]
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--port` | `20202` | Port to listen on |
+| `--host` | `127.0.0.1` | Host to bind to |
 | `--voice` | `af_heart` | Kokoro voice to use |
 | `--lang` | `a` | Language code (`a` = American English) |
 | `--interrupt` | `true` | Allow new audio to interrupt playing audio |
@@ -147,6 +231,10 @@ uv run kokoro-server [options]
 | `--drop-sound` | `true` | Play blip when messages are skipped |
 | `--no-drop-sound` | - | Disable drop sound |
 | `--log-level` | `INFO` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `--summarizer` | `groq` | Summarizer backend: `groq` or `ollama` |
+| `--ollama-model-large` | `llama3.1:8b` | Ollama model for long responses |
+| `--ollama-model-small` | `llama3.2:1b` | Ollama model for short responses/permissions |
+| `--ollama-url` | `http://localhost:11434` | Ollama server URL |
 
 ### Interrupt and Queue Behavior
 
@@ -163,7 +251,7 @@ The `--interrupt` and `--queue` options are independent and combine as follows:
 
 | Sound | When | Option |
 |-------|------|--------|
-| **Interrupt Chime** (two-note G5→C6) | Playing audio is interrupted | `--interrupt-chime` / `--no-interrupt-chime` |
+| **Interrupt Chime** (two-note G5 -> C6) | Playing audio is interrupted | `--interrupt-chime` / `--no-interrupt-chime` |
 | **Drop tone** (short blip) | Message skipped without playing | `--drop-sound` / `--no-drop-sound` |
 
 ## Voices
@@ -173,12 +261,12 @@ The default voice (`af_heart`) sounds great. The other Kokoro voices aren't as g
 ## Debugging
 
 Logs are written to:
-- `~/.claude/hooks/claude-code-kokoro-tts-summary.output`
-- `~/.claude/hooks/claude-code-kokoro-tts-permission.output`
+- `~/.claude/hooks/summary-tts.output`
+- `~/.claude/hooks/permission-tts.output`
 
 ## Groq Rate Limits
 
-Free tier (as of December 2024):
+Free tier (as of December 2025):
 - ~1,000 long summaries/day (`openai/gpt-oss-120b`)
 - ~14,400 short summaries/day (`llama-3.1-8b-instant`)
 

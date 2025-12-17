@@ -2,58 +2,84 @@
 
 ## Project Overview
 
-Claude Code TTS Hooks - Audio feedback for Claude Code via text-to-speech.
-
-**Hooks:**
-- **Stop** - Summarizes Claude's response and plays it via TTS
-- **PermissionRequest** - Announces what permission Claude is requesting
+Claude Code TTS Server - Audio feedback for Claude Code via text-to-speech.
 
 ## Architecture
 
 ```
-claude-code-kokoro-tts-summary.sh    # Stop hook - summarizes responses
-claude-code-kokoro-tts-permission.sh # PermissionRequest hook - announces permissions
-kokoro-server.py                     # Async TTS server (Kokoro-82M)
+claude_code_tts_server/           # Python package
+├── main.py                       # FastAPI entry point, CLI
+├── config.py                     # Pydantic settings
+├── api/
+│   ├── routes.py                 # REST endpoints
+│   └── models.py                 # Request/response models
+├── core/
+│   ├── audio_manager.py          # Async workers, queue management
+│   ├── context.py                # Request ID context, logging utilities
+│   ├── playback.py               # Audio playback
+│   ├── sounds.py                 # Chime/drop tone generation
+│   └── transcript.py             # JSONL transcript parsing
+├── summarizers/
+│   ├── base.py                   # SummarizerInterface ABC
+│   ├── groq.py                   # Groq implementation
+│   ├── ollama.py                 # Ollama implementation
+│   └── prompts.py                # System prompts
+└── tts/
+    ├── base.py                   # TTSInterface ABC
+    └── kokoro.py                 # Kokoro implementation
+
+claude-code-hooks/                # Shell script wrappers
+├── summary-tts.sh                # Stop hook -> POST /summarize
+└── permission-tts.sh             # PermissionRequest hook -> POST /permission
 ```
 
-**Hook Flow:**
+**API Flow:**
 1. Claude Code triggers hook with JSON on stdin
-2. Hook extracts relevant info (transcript or tool request)
-3. Groq API summarizes/formats for speech
-4. Text sent to TTS server via TCP socket
-5. Server generates and plays audio
+2. Hook script POSTs to TTS server API
+3. Server parses transcript and summarizes via Groq
+4. Server generates TTS via Kokoro
+5. Audio queued and played with interrupt logic
 
-**Server Features:**
-- Async - handles ping/pong health checks instantly, even while playing
-- Background generation - prepares next audio while current plays
-- Interrupt - only when new audio is ready (no silence gaps)
-- Chime - two-note G5→C6 transition sound on interrupt
-- Rapid batching - plays ~0.8s snippets of queued messages
+**Key Interfaces:**
+- `SummarizerInterface` - Abstract base for LLM summarization backends
+- `TTSInterface` - Abstract base for TTS generation backends
 
 ## Environment Variables
 
-| Variable | Required | Default |
-|----------|----------|---------|
-| `SUMMARY_GROQ_API_KEY` | Yes | - |
-| `SUMMARY_GROQ_MODEL_LARGE` | No | `openai/gpt-oss-120b` |
-| `SUMMARY_GROQ_MODEL_SMALL` | No | `llama-3.1-8b-instant` |
-| `SUMMARY_AUDIO_PORT` | No | `20202` |
+All settings in `.env` file. Key variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SUMMARY_BACKEND` | `groq` | `groq` or `ollama` |
+| `SUMMARY_GROQ_API_KEY` | - | Required for Groq |
+| `SUMMARY_OLLAMA_MODEL_LARGE` | `llama3.1:8b` | Ollama large model |
+| `SUMMARY_OLLAMA_MODEL_SMALL` | `llama3.2:1b` | Ollama small model |
+| `SUMMARY_AUDIO_PORT` | `20202` | Server port |
+
+See `.env.example` for all options.
 
 ## Running
 
 ```bash
 # Start TTS server
-uv run kokoro-server.py --port 20202
+uv run tts-server
 
 # For remote usage, SSH with reverse tunnel
 ssh -R 20202:localhost:20202 user@server
 ```
 
+## Testing
+
+```bash
+uv sync --group dev
+uv run pytest tests/ -v
+```
+
 ## Debugging
 
-Output logs:
-- `claude-code-kokoro-tts-summary.output`
-- `claude-code-kokoro-tts-permission.output`
+Hook output logs (written to script directory):
+- `~/.claude/hooks/summary-tts.output`
+- `~/.claude/hooks/permission-tts.output`
 
 ## Commit Messages
 

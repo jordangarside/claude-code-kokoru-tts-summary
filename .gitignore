@@ -3,6 +3,7 @@
 
 # Local settings (may contain API keys)
 .claude
+.env
 
 # Backups and samples
 backups/

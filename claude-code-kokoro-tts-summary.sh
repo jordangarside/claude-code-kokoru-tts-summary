@@ -75,14 +75,20 @@ cp "$transcript_path" "$SCRIPT_DIR/$SCRIPT_NAME.transcript"
 
 # Extract the latest assistant response from transcript (JSONL format)
 # A Claude "turn" spans multiple API messages (tool calls, tool results, final response)
-# We get all assistant content since the last real user message (not tool_result)
+# We get all assistant content since the last real user message OR the last interrupt
 latest_response=$(jq -s '
   # Helper: check if content array contains tool_result
   def has_tool_result: if type == "array" then any(.type == "tool_result") else false end;
+  # Helper: check if content contains an interrupt/rejection
+  def is_interrupt: if type == "array" then any(.type == "tool_result" and (.content | type == "string") and (.content | test("The user doesn.t want to proceed|tool use was rejected"; "i"))) else false end;
   # Find index of last real user message (not a tool_result)
   (to_entries | map(select(.value.type == "user" and (.value.message.content | has_tool_result | not))) | last | .key // -1) as $last_user_idx |
+  # Find index of last interrupt (rejected tool use)
+  (to_entries | map(select(.value.type == "user" and (.value.message.content | is_interrupt))) | last | .key // -1) as $last_interrupt_idx |
+  # Use whichever boundary is more recent
+  ([$last_user_idx, $last_interrupt_idx] | max) as $boundary_idx |
   # Get all assistant entries after that index
-  to_entries | map(select(.key > $last_user_idx and .value.type == "assistant")) | map(.value) |
+  to_entries | map(select(.key > $boundary_idx and .value.type == "assistant")) | map(.value) |
   # Collect all content items (handle both array and non-array content)
   [.[].message.content | if type == "array" then .[] else empty end] |
   # Process each content item

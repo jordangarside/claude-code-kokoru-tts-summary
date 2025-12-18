@@ -59,27 +59,27 @@ def parse_transcript(
         if entry.get("type") != "user":
             continue
 
-        content = entry.get("message", {}).get("content", [])
+        msg_content = entry.get("message", {}).get("content", [])
 
         # Handle string content (from context summarization) - treat as real user message
-        if isinstance(content, str):
+        if isinstance(msg_content, str):
             last_user_idx = i
             continue
 
-        if not isinstance(content, list):
+        if not isinstance(msg_content, list):
             continue
 
         # Check if this is a tool_result message (not a real user message)
         has_tool_result = any(
             isinstance(c, dict) and c.get("type") == "tool_result"
-            for c in content
+            for c in msg_content
         )
 
         if not has_tool_result:
             last_user_idx = i
 
         # Check for interrupt (rejected tool use)
-        for c in content:
+        for c in msg_content:
             if not isinstance(c, dict) or c.get("type") != "tool_result":
                 continue
             result_content = c.get("content", "")
@@ -103,11 +103,11 @@ def parse_transcript(
         if entry.get("type") != "assistant":
             continue
 
-        content = entry.get("message", {}).get("content", [])
-        if not isinstance(content, list):
+        msg_content = entry.get("message", {}).get("content", [])
+        if not isinstance(msg_content, list):
             continue
 
-        for item in content:
+        for item in msg_content:
             if not isinstance(item, dict):
                 continue
 

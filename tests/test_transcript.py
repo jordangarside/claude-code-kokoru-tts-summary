@@ -141,6 +141,48 @@ class TestParseTranscript:
         assert "[Earlier content truncated...]" in result.content
         assert result.length < 25000  # Should be truncated
 
+    def test_parse_transcript_truncates_many_messages(self):
+        """Test truncation with many assistant messages totaling large content."""
+        # Simulate a long conversation with many tool calls (like 338k chars total)
+        entries = [
+            {
+                "type": "user",
+                "message": {"content": [{"type": "text", "text": "Help me"}]}
+            },
+        ]
+
+        # Add 100 assistant messages with 4000 chars each = 400k+ chars total
+        for i in range(100):
+            entries.append({
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": f"Message {i}: " + "y" * 4000},
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": f"echo {i}"}
+                        }
+                    ]
+                }
+            })
+            # Add tool result (doesn't count as user message)
+            entries.append({
+                "type": "user",
+                "message": {
+                    "content": [{"type": "tool_result", "content": f"Output {i}"}]
+                }
+            })
+
+        result = parse_transcript(_entries_to_jsonl(entries))
+
+        assert result is not None
+        assert result.truncated is True
+        assert "[Earlier content truncated...]" in result.content
+        # Should be truncated to ~20k chars (plus prefix)
+        assert result.length <= 20100  # 20k + prefix overhead
+        assert result.has_tool_calls is True
+
     def test_parse_transcript_custom_max_length(self):
         """Test custom max content length."""
         entries = [

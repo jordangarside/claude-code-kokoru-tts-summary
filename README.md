@@ -183,6 +183,7 @@ All settings can be configured via environment variables in `.env` or CLI args. 
 | `AUDIO_INTERRUPT_CHIME` | `true` | Play chime on interrupt |
 | `AUDIO_DROP_SOUND` | `true` | Play sound when messages dropped |
 | `AUDIO_SPEED` | `1.0` | Playback speed multiplier (requires rubberband, see below) |
+| `AUDIO_VOLUME` | `1.0` | Playback volume (e.g. `2.0` for double volume) |
 
 ### TTS Settings
 
@@ -251,6 +252,7 @@ Or use CLI args:
 | `--drop-sound` | `true` | Play blip when messages are skipped |
 | `--no-drop-sound` | - | Disable drop sound |
 | `--speed` | `1.0` | Playback speed (1.3 = 30% faster, requires rubberband) |
+| `--volume` | `1.0` | Playback volume (2.0 = double volume) |
 | `--log-level` | `INFO` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `--summarizer` | `groq` | Summarizer backend: `groq` or `ollama` |
 | `--ollama-model-large` | `llama3.1:8b` | Ollama model for long responses |

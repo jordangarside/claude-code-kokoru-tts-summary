@@ -76,6 +76,7 @@ class AudioConfig(BaseSettings):
     interrupt_chime: bool = True
     drop_sound: bool = True
     speed: float = 1.0  # Playback speed multiplier (1.0 = normal, 1.3 = 30% faster)
+    volume: float = 1.0  # Playback volume (1.0 = normal, 2.0 = double)
 
 
 class ServerConfig(BaseSettings):
@@ -115,7 +116,7 @@ class ServerConfig(BaseSettings):
             elif key in ("summarizer_backend",):
                 summarizer_args["backend"] = value
             elif key in ("interrupt", "min_duration", "queue", "max_queue",
-                        "interrupt_chime", "drop_sound"):
+                        "interrupt_chime", "drop_sound", "volume"):
                 # Convert CLI naming to config naming
                 audio_args[key.replace("-", "_")] = value
             elif key in ("host", "port", "log_level"):

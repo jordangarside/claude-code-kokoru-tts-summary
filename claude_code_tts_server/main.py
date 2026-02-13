@@ -196,9 +196,10 @@ def _log_startup_config(config: ServerConfig) -> None:
     # Audio config
     audio = config.audio
     speed_str = f", speed={audio.speed}x" if audio.speed != 1.0 else ""
+    volume_str = f", volume={audio.volume}" if audio.volume != 1.0 else ""
     log.info(
         f"Audio: interrupt={audio.interrupt}, queue={audio.queue}, "
-        f"min_duration={audio.min_duration}s, max_queue={audio.max_queue}{speed_str}"
+        f"min_duration={audio.min_duration}s, max_queue={audio.max_queue}{speed_str}{volume_str}"
     )
 
 
@@ -245,6 +246,12 @@ def _log_startup_config(config: ServerConfig) -> None:
     help="Playback speed multiplier, e.g. 1.3 for 30%% faster (env: AUDIO_SPEED)",
 )
 @click.option(
+    "--volume",
+    default=None,
+    type=float,
+    help="Playback volume, e.g. 2.0 for double volume (env: AUDIO_VOLUME)",
+)
+@click.option(
     "--log-level",
     default=None,
     type=click.Choice(["TRACE", "DEBUG", "INFO", "WARNING", "ERROR"]),
@@ -289,6 +296,7 @@ def main(
     interrupt_chime: bool | None,
     drop_sound: bool | None,
     speed: float | None,
+    volume: float | None,
     log_level: str | None,
     summarizer: str | None,
     ollama_model_large: str | None,
@@ -337,6 +345,7 @@ def main(
             "interrupt_chime": interrupt_chime,
             "drop_sound": drop_sound,
             "speed": speed,
+            "volume": volume,
         }.items() if v is not None
     }
     if audio_overrides:

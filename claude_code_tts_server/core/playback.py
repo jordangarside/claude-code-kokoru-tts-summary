@@ -9,14 +9,20 @@ from pathlib import Path
 log = logging.getLogger("tts-server")
 
 
-def get_player() -> list[str] | None:
+def get_player(volume: float = 1.0) -> list[str] | None:
     """Get audio player command for this platform.
+
+    Args:
+        volume: Volume multiplier (1.0 = normal, 2.0 = double).
 
     Returns:
         List of command arguments for the audio player, or None if not found.
     """
     if sys.platform == "darwin":
-        return ["afplay"]
+        cmd = ["afplay"]
+        if volume != 1.0:
+            cmd += ["-v", str(volume)]
+        return cmd
 
     for player in [["mpv", "--no-terminal"], ["paplay"], ["aplay"]]:
         try:
@@ -24,22 +30,25 @@ def get_player() -> list[str] | None:
                 ["which", player[0]], capture_output=True, check=False
             )
             if result.returncode == 0:
+                if volume != 1.0 and player[0] == "mpv":
+                    player += [f"--volume={int(volume * 100)}"]
                 return player
         except OSError:
             pass
     return None
 
 
-def play_sound_async(audio_file: Path | str) -> subprocess.Popen | None:
+def play_sound_async(audio_file: Path | str, volume: float = 1.0) -> subprocess.Popen | None:
     """Play sound without blocking (fire-and-forget).
 
     Args:
         audio_file: Path to the audio file to play.
+        volume: Volume multiplier (1.0 = normal, 2.0 = double).
 
     Returns:
         The subprocess, or None if playback failed.
     """
-    player = get_player()
+    player = get_player(volume)
     if player and audio_file:
         return subprocess.Popen(
             player + [str(audio_file)],
@@ -52,7 +61,8 @@ def play_sound_async(audio_file: Path | str) -> subprocess.Popen | None:
 class AudioPlayer:
     """Manages audio playback with interrupt support."""
 
-    def __init__(self):
+    def __init__(self, volume: float = 1.0):
+        self.volume = volume
         self.current_process: subprocess.Popen | None = None
         self.play_start_time: float | None = None
         self._current_audio_file: Path | None = None
@@ -79,7 +89,7 @@ class AudioPlayer:
         """
         import time
 
-        player = get_player()
+        player = get_player(self.volume)
         if not player:
             return False
 
@@ -137,7 +147,7 @@ class AudioPlayer:
         if not chime_file:
             return
 
-        player = get_player()
+        player = get_player(self.volume)
         if not player:
             return
 
@@ -167,4 +177,4 @@ class AudioPlayer:
         """
         if drop_file:
             log.debug("Playing drop tone")
-            play_sound_async(drop_file)
+            play_sound_async(drop_file, self.volume)

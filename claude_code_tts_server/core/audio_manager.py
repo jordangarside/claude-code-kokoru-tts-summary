@@ -123,7 +123,7 @@ class AudioPipeline:
         self.audio_lock = asyncio.Lock()
 
         # Playback
-        self.player = AudioPlayer()
+        self.player = AudioPlayer(volume=config.volume)
         self.sounds = SoundManager(tts.get_sample_rate())
         self._current_text: str | None = None
 

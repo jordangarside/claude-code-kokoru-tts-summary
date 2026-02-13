@@ -116,7 +116,7 @@ class ServerConfig(BaseSettings):
             elif key in ("summarizer_backend",):
                 summarizer_args["backend"] = value
             elif key in ("interrupt", "min_duration", "queue", "max_queue",
-                        "interrupt_chime", "drop_sound", "volume"):
+                        "interrupt_chime", "drop_sound", "speed", "volume"):
                 # Convert CLI naming to config naming
                 audio_args[key.replace("-", "_")] = value
             elif key in ("host", "port", "log_level"):

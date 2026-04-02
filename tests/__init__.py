@@ -1,1 +1,1 @@
-"""Tests for Claude Code TTS Server."""
+"""Tests for TTS Server."""

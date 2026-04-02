@@ -1,4 +1,4 @@
-"""Main entry point for Claude Code TTS Server."""
+"""Main entry point for TTS Server."""
 
 import logging
 import signal
@@ -159,8 +159,8 @@ def create_app(config: ServerConfig) -> FastAPI:
         await summarizer.close()
 
     app = FastAPI(
-        title="Claude Code TTS Server",
-        description="Audio feedback for Claude Code via text-to-speech",
+        title="TTS Server",
+        description="Audio feedback for code agents via text-to-speech",
         version="0.2.0",
         lifespan=lifespan,
     )
@@ -303,7 +303,7 @@ def main(
     ollama_model_small: str | None,
     ollama_url: str | None,
 ) -> None:
-    """Claude Code TTS Server - Audio feedback via text-to-speech."""
+    """TTS Server - Audio feedback for code agents via text-to-speech."""
     # Load base config from env vars first
     tts_config = TTSConfig()
     summarizer_config = SummarizerConfig()

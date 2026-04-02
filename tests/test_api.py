@@ -94,13 +94,13 @@ class TestSpeakEndpoint:
         assert "empty" in response.json()["detail"].lower()
 
 
-class TestSummarizeEndpoint:
-    """Tests for /summarize endpoint."""
+class TestSummarizeTranscriptEndpoint:
+    """Tests for /summarize/transcript endpoint."""
 
     def test_summarize_with_content(self, client, mock_audio_manager, sample_transcript_jsonl):
         """Test summarize with transcript content queues immediately."""
         response = client.post(
-            "/summarize",
+            "/summarize/transcript",
             json={"transcript_content": sample_transcript_jsonl},
         )
 
@@ -112,10 +112,20 @@ class TestSummarizeEndpoint:
         # Should queue request, not call summarizer directly
         mock_audio_manager.add_request.assert_called_once()
 
+    def test_summarize_backward_compat_alias(self, client, mock_audio_manager, sample_transcript_jsonl):
+        """Test /summarize alias still works for backward compatibility."""
+        response = client.post(
+            "/summarize",
+            json={"transcript_content": sample_transcript_jsonl},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
+
     def test_summarize_empty_content(self, client):
         """Test summarize with empty content."""
         response = client.post(
-            "/summarize",
+            "/summarize/transcript",
             json={"transcript_content": ""},
         )
 
@@ -123,7 +133,73 @@ class TestSummarizeEndpoint:
 
     def test_summarize_no_input(self, client):
         """Test summarize with no input."""
-        response = client.post("/summarize", json={})
+        response = client.post("/summarize/transcript", json={})
+
+        assert response.status_code == 422  # Pydantic validation error
+
+
+class TestSummarizeTextEndpoint:
+    """Tests for /summarize/text endpoint."""
+
+    def test_summarize_text_success(self, client, mock_audio_manager):
+        """Test short content gets SHORT_RESPONSE type."""
+        response = client.post(
+            "/summarize/text",
+            json={"content": "I fixed the bug."},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message_id"] == "test-request-id"
+        assert data["status"] == "queued"
+
+        call_kwargs = mock_audio_manager.add_request.call_args
+        assert call_kwargs.kwargs["summary_type"].name == "SHORT_RESPONSE"
+
+    def test_summarize_text_long_content(self, client, mock_audio_manager):
+        """Test content >= 300 chars gets LONG_RESPONSE type."""
+        long_content = "I updated the configuration. " * 20  # well over 300 chars
+        response = client.post(
+            "/summarize/text",
+            json={"content": long_content},
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_audio_manager.add_request.call_args
+        assert call_kwargs.kwargs["summary_type"].name == "LONG_RESPONSE"
+
+    def test_summarize_text_with_tool_calls(self, client, mock_audio_manager):
+        """Test has_tool_calls=true gets LONG_RESPONSE regardless of length."""
+        response = client.post(
+            "/summarize/text",
+            json={"content": "Short.", "has_tool_calls": True},
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_audio_manager.add_request.call_args
+        assert call_kwargs.kwargs["summary_type"].name == "LONG_RESPONSE"
+
+    def test_summarize_text_empty_content(self, client):
+        """Test empty content returns 400."""
+        response = client.post(
+            "/summarize/text",
+            json={"content": ""},
+        )
+
+        assert response.status_code == 400
+
+    def test_summarize_text_whitespace_only(self, client):
+        """Test whitespace-only content returns 400."""
+        response = client.post(
+            "/summarize/text",
+            json={"content": "   \n\t  "},
+        )
+
+        assert response.status_code == 400
+
+    def test_summarize_text_no_input(self, client):
+        """Test missing fields returns 422."""
+        response = client.post("/summarize/text", json={})
 
         assert response.status_code == 422  # Pydantic validation error
 

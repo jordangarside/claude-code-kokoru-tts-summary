@@ -1,4 +1,4 @@
-"""Configuration for Claude Code TTS Server."""
+"""Configuration for TTS Server."""
 
 from typing import Literal
 

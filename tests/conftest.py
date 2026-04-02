@@ -1,4 +1,4 @@
-"""Pytest fixtures for Claude Code TTS Server tests."""
+"""Pytest fixtures for TTS Server tests."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock

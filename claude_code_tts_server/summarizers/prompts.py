@@ -6,7 +6,7 @@ PROMPT_SHORT_RESPONSE = """Convert this text for text-to-speech by removing mark
 
 # Long response / tool use summarization prompt
 # Used for responses >= 300 chars or containing tool calls
-PROMPT_LONG_RESPONSE = """Summarize the following Claude Code response for text-to-speech. Write 1-3 sentences in first-person AS IF YOU ARE Claude Code.
+PROMPT_LONG_RESPONSE = """Summarize the following response for text-to-speech. Write 1-3 sentences in first-person AS IF YOU ARE the AI assistant.
 
 Rules:
 - ACTIONS (edited files, ran commands): use past tense. Example: I updated the config and ran the tests.

@@ -1,11 +1,13 @@
-# Claude Code TTS Server
+# TTS Server
 
-Audio feedback for Claude Code using text-to-speech. Hear summaries of Claude's responses and permission requests.
+Audio feedback for code agents using text-to-speech. Hear summaries of responses and permission requests.
+
+Supports [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (via shell hooks) and [OpenCode](https://opencode.ai) (via TypeScript plugin).
 
 ## Features
 
-- **Response summaries** - After Claude responds, hear a TTS summary of what it did
-- **Permission announcements** - Hear what permission Claude is requesting before you approve
+- **Response summaries** - After the agent responds, hear a TTS summary of what it did
+- **Permission announcements** - Hear what permission the agent is requesting before you approve
 - **Interrupt support** - New audio cancels currently playing audio with a transition chime
 - **SSH support** - Works on remote servers via reverse tunnel
 - **REST API** - Control the TTS server programmatically
@@ -22,9 +24,9 @@ https://github.com/user-attachments/assets/df42f17a-2c52-4346-91df-0510c49a8655
 
 ## Requirements
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - [Groq API key](https://console.groq.com/) (free tier works fine) **OR** [Ollama](https://ollama.ai/) for local inference
+- A supported code agent: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [OpenCode](https://opencode.ai)
 
 ## Installation
 
@@ -56,14 +58,21 @@ See [Configuration](#configuration) below for all available options.
 ➜ uv run tts-server
 ```
 
-### 4. Install the Hooks
+### 4. Set Up Your Code Agent
+
+Choose your agent below:
+
+<details>
+<summary><b>Claude Code</b></summary>
+
+#### Install the Hooks
 
 ```bash
 ➜ mkdir -p ~/.claude/hooks
 ➜ cp claude-code-hooks/* ~/.claude/hooks/
 ```
 
-### 5. Configure Claude Code Hooks
+#### Configure Claude Code Hooks
 
 Add to `~/.claude/settings.local.json`:
 
@@ -96,13 +105,33 @@ Add to `~/.claude/settings.local.json`:
 }
 ```
 
-### 6. Test it Out
+#### Test It
 
 ```bash
 ➜ claude --model=haiku -p 'tell me a fantasy story in 1 paragraph'
 ```
 
 You may need to load `claude` and check the hooks are loaded with the `/hooks` command.
+
+</details>
+
+<details>
+<summary><b>OpenCode</b></summary>
+
+#### Install the Plugin
+
+```bash
+➜ mkdir -p .opencode/plugins
+➜ cp opencode-plugin/plugin.ts .opencode/plugins/tts-plugin.ts
+```
+
+No extra dependencies needed — the plugin uses only the built-in `@opencode-ai/plugin` types.
+
+#### Test It
+
+Start the TTS server, then launch OpenCode in your project. Send a prompt and you should hear audio when the agent finishes responding.
+
+</details>
 
 ## Architecture
 
@@ -115,9 +144,13 @@ claude_code_tts_server/         # Python package
 ├── summarizers/                # LLM backends (Groq)
 └── tts/                        # TTS backends (Kokoro)
 
-claude-code-hooks/              # Shell script wrappers
-├── summary-tts.sh              # Stop hook -> POST /summarize
-└── permission-tts.sh           # PermissionRequest hook -> POST /permission
+claude-code-hooks/              # Claude Code shell hook wrappers
+├── summary-tts.sh              # Stop hook -> POST /summarize/transcript
+├── permission-tts.sh           # PermissionRequest hook -> POST /permission
+└── mcp-tts.sh                  # PostToolUse hook -> POST /speak
+
+opencode-plugin/                # OpenCode TypeScript plugin
+└── plugin.ts                   # Copy to .opencode/plugins/
 ```
 
 ## API Endpoints
@@ -125,7 +158,9 @@ claude-code-hooks/              # Shell script wrappers
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check |
-| POST | `/summarize` | Full pipeline: transcript -> summary -> TTS |
+| POST | `/summarize/transcript` | Parse Claude Code JSONL transcript, summarize, TTS |
+| POST | `/summarize/text` | Summarize pre-parsed text content, TTS |
+| POST | `/summarize` | Alias for `/summarize/transcript` (backward compat) |
 | POST | `/permission` | Permission announcement pipeline |
 | POST | `/speak` | Direct TTS (skip summarization) |
 | GET | `/queue` | Queue status |
@@ -213,12 +248,12 @@ Or use CLI args:
 
 ## How It Works
 
-**Response Summaries (Stop hook):**
+**Response Summaries:**
 - Short responses (<300 chars): Cleaned for TTS (removes markdown)
 - Long responses: Summarized to 1-3 sentences in first person
 - Content-aware: Actions use past tense, explanations get summarized, questions kept as-is
 
-**Permission Announcements (PermissionRequest hook):**
+**Permission Announcements:**
 - Extracts tool name and parameters
 - Generates brief announcement like "Permission requested: Bash command to check disk space"
 - Non-blocking to avoid delaying the permission dialog

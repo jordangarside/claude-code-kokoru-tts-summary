@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-Claude Code TTS Server - Audio feedback for Claude Code via text-to-speech.
+TTS Server - Audio feedback for code agents via text-to-speech.
+
+Supports Claude Code (via shell hooks) and OpenCode (via TypeScript plugin).
 
 ## Architecture
 
@@ -18,7 +20,7 @@ claude_code_tts_server/           # Python package
 │   ├── context.py                # Request ID context, logging utilities
 │   ├── playback.py               # Audio playback
 │   ├── sounds.py                 # Chime/drop tone generation
-│   └── transcript.py             # JSONL transcript parsing
+│   └── transcript.py             # JSONL transcript parsing (Claude Code)
 ├── summarizers/
 │   ├── base.py                   # SummarizerInterface ABC
 │   ├── groq.py                   # Groq implementation
@@ -28,15 +30,19 @@ claude_code_tts_server/           # Python package
     ├── base.py                   # TTSInterface ABC
     └── kokoro.py                 # Kokoro implementation
 
-claude-code-hooks/                # Shell script wrappers
-├── summary-tts.sh                # Stop hook -> POST /summarize
-└── permission-tts.sh             # PermissionRequest hook -> POST /permission
+claude-code-hooks/                # Claude Code shell hook wrappers
+├── summary-tts.sh                # Stop hook -> POST /summarize/transcript
+├── permission-tts.sh             # PermissionRequest hook -> POST /permission
+└── mcp-tts.sh                    # PostToolUse hook -> POST /speak
+
+opencode-plugin/                  # OpenCode TypeScript plugin
+└── plugin.ts                     # Copy to .opencode/plugins/
 ```
 
 **API Flow:**
-1. Claude Code triggers hook with JSON on stdin
-2. Hook script POSTs to TTS server API
-3. Server parses transcript and summarizes via Groq
+1. Code agent triggers hook/plugin event
+2. Hook script or plugin POSTs to TTS server API
+3. Server summarizes content via Groq/Ollama
 4. Server generates TTS via Kokoro
 5. Audio queued and played with interrupt logic
 

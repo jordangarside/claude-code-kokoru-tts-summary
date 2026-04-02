@@ -3,16 +3,25 @@
 from pydantic import BaseModel, Field
 
 
-class SummarizeRequest(BaseModel):
-    """Request for the /summarize endpoint (Stop hook)."""
+class TranscriptSummarizeRequest(BaseModel):
+    """Request for the /summarize/transcript endpoint (Claude Code JSONL)."""
 
     transcript_content: str = Field(
-        description="Claude Code transcript JSONL content",
+        description="Transcript JSONL content",
+    )
+
+
+class SummarizeTextRequest(BaseModel):
+    """Request for the /summarize/text endpoint."""
+
+    content: str = Field(description="Conversation text to summarize")
+    has_tool_calls: bool = Field(
+        default=False, description="Whether content includes tool calls"
     )
 
 
 class PermissionRequest(BaseModel):
-    """Request for the /permission endpoint (PermissionRequest hook)."""
+    """Request for the /permission endpoint."""
 
     tool_name: str = Field(description="Name of the tool requesting permission")
     tool_input: dict = Field(description="Tool input parameters")

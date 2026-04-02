@@ -49,7 +49,7 @@ cp "$transcript_path" "$SCRIPT_DIR/$SCRIPT_NAME.transcript" 2>/dev/null
 # Pipe JSON via stdin to avoid "Argument list too long" for large transcripts
 response=$(tail -c 100000 "$transcript_path" | \
   jq -Rs '{transcript_content: .}' | \
-  curl -s -X POST "${TTS_URL}/summarize" \
+  curl -s -X POST "${TTS_URL}/summarize/transcript" \
     -H "Content-Type: application/json" \
     -d @- \
     --max-time 30 2>&1)

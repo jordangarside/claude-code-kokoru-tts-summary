@@ -14,7 +14,8 @@ from .models import (
     PermissionRequest,
     QueueStatusResponse,
     SpeakRequest,
-    SummarizeRequest,
+    SummarizeTextRequest,
+    TranscriptSummarizeRequest,
 )
 
 log = logging.getLogger("tts-server")
@@ -44,12 +45,13 @@ async def health(request: Request) -> HealthResponse:
     )
 
 
-@router.post("/summarize", response_model=MessageResponse)
-async def summarize(
+@router.post("/summarize/transcript", response_model=MessageResponse)
+@router.post("/summarize", response_model=MessageResponse, include_in_schema=False)
+async def summarize_transcript(
     request: Request,
-    body: SummarizeRequest,
+    body: TranscriptSummarizeRequest,
 ) -> MessageResponse:
-    """Full summarization pipeline for Stop hook.
+    """Summarize transcript content (Claude Code JSONL format).
 
     Parses transcript and queues for summarization → TTS → playback.
     Returns immediately after queuing.
@@ -70,7 +72,7 @@ async def summarize(
     if parsed.truncated:
         log.debug(f"Content truncated to {content_length} chars")
 
-    log.info(f"POST /summarize ({content_length} chars)")
+    log.info(f"POST /summarize/transcript ({content_length} chars)")
 
     # Determine summary type
     if has_tool_calls or content_length >= 300:
@@ -91,12 +93,50 @@ async def summarize(
     )
 
 
+@router.post("/summarize/text", response_model=MessageResponse)
+async def summarize_text(
+    request: Request,
+    body: SummarizeTextRequest,
+) -> MessageResponse:
+    """Summarize pre-parsed text content.
+
+    Accepts plain text (not transcript JSONL). Used by clients that
+    extract conversation content themselves (e.g. OpenCode plugin).
+    Returns immediately after queuing.
+    """
+    pipeline = get_pipeline(request)
+
+    if not body.content or not body.content.strip():
+        raise HTTPException(status_code=400, detail="content is required")
+
+    content_length = len(body.content)
+    log.info(f"POST /summarize/text ({content_length} chars)")
+
+    # Determine summary type
+    if body.has_tool_calls or content_length >= 300:
+        summary_type = SummaryType.LONG_RESPONSE
+    else:
+        summary_type = SummaryType.SHORT_RESPONSE
+
+    # Queue for processing (returns immediately)
+    request_id = await pipeline.add_request(
+        request_type=RequestType.SUMMARIZE,
+        content=body.content,
+        summary_type=summary_type,
+    )
+
+    return MessageResponse(
+        message_id=request_id,
+        status="queued",
+    )
+
+
 @router.post("/permission", response_model=MessageResponse)
 async def permission(
     request: Request,
     body: PermissionRequest,
 ) -> MessageResponse:
-    """Permission announcement pipeline for PermissionRequest hook.
+    """Announce a tool permission request via TTS.
 
     Queues for summarization → TTS → playback.
     Returns immediately after queuing.
